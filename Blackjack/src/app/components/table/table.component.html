@@ -1,1 +1,12 @@
-<div #rendererContainer id="rendererContainer"></div>
+<div class="game-container">
+  <div #rendererContainer class="renderer-container"></div>
+  <div class="controls">
+    <button (click)="startNewGame()">Neues Spiel</button>
+    <button (click)="hit()" [disabled]="!gameInProgress">Karte nehmen</button>
+    <button (click)="stand()" [disabled]="!gameInProgress">Halten</button>
+  </div>
+  <div class="scores" *ngIf="gameInProgress">
+    <p>Dealer: {{ showDealerScore ? getDealerScore() : getDealerScore() + ' + ?' }}</p>
+    <p>Spieler: {{ getPlayerScore() }}</p>
+  </div>
+</div>
