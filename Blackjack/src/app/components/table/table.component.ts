@@ -1,7 +1,7 @@
 import { Component, OnInit, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
-
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { TextureLoader } from 'three';
 
@@ -35,7 +35,6 @@ class Hand {
       score += card.numericValue;
     }
 
-    // Ass kann 1 oder 11 sein
     while (score > 21 && aces > 0) {
       score -= 10;
       aces--;
@@ -129,7 +128,6 @@ export class TableComponent implements OnInit, AfterViewInit {
   }
 
   async ngAfterViewInit() {
-    console.log('TableComponent initialized');
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.renderer = new THREE.WebGLRenderer();
@@ -140,7 +138,7 @@ export class TableComponent implements OnInit, AfterViewInit {
       this.loadTable();
       this.animate();
     } catch (error) {
-      console.error('Fehler beim Initialisieren:', error);
+      console.error('Fehler', error);
     }
 
     window.addEventListener('resize', () => {
@@ -153,86 +151,70 @@ export class TableComponent implements OnInit, AfterViewInit {
     });
   }
 
-  ngOnInit() {
-  }
+  ngOnInit() {}
 
   private initScene(): void {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.rendererContainer.nativeElement.appendChild(this.renderer.domElement);
 
-    this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.set(0, 15, 10);
+    this.camera.position.set(0, 10, 0); // Kamera direkt über dem Tisch
     this.camera.lookAt(0, 0, 0);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.minDistance = 5;
+    this.controls.minDistance = 1;
     this.controls.maxDistance = 15;
-    this.controls.maxPolarAngle = Math.PI / 2.1;
+    this.controls.maxPolarAngle = Math.PI / 1.5;
+
+    this.renderer.shadowMap.enabled = true;
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 7);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(0, 5, 0);
+    directionalLight.castShadow = true;
     this.scene.add(ambientLight);
     this.scene.add(directionalLight);
 
     this.cardGeometry = new THREE.PlaneGeometry(1, 1.4);
 
     const textureLoader = new TextureLoader();
-    const backTexture = textureLoader.load(
+    textureLoader.load(
       'assets/models/back.png',
       (texture) => {
-        console.log('Back Textur erfolgreich geladen');
+        this.cardMaterials.set('back', new THREE.MeshStandardMaterial({
+          map: texture,
+          normalMap: texture,
+          side: THREE.DoubleSide
+        }));
       },
       undefined,
       (error) => {
-        console.error('Fehler beim Laden der Back-Textur:', error);
-      }
-    );
-
-    this.cardMaterials.set('back', new THREE.MeshStandardMaterial({
-      map: backTexture,
-      side: THREE.DoubleSide
-    }));
-
-    textureLoader.load(
-      'assets/models/clubs_king.png',
-      (texture) => {
-        console.log('Test-Kartentextur erfolgreich geladen');
-      },
-      (xhr) => {
-        console.log((xhr.loaded / xhr.total * 100) + '% geladen');
-      },
-      (error) => {
-        console.error('Fehler beim Laden der Test-Kartentextur:', error);
+        console.error('Fehler beim Laden der Back-Textur', error);
       }
     );
   }
 
   private loadTable(): void {
-    const loader = new OBJLoader();
+    const loader = new GLTFLoader();
     loader.load(
-      'assets/models/Blackjack-Table.obj',
-      (object) => {
-        console.log('Tisch Position:', object.position);
-        this.scene.add(object);
+      'assets/models/blackjack.glb',
+      (gltf) => {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        this.scene.add(gltf.scene);
       },
-      (xhr) => {
-        console.log((xhr.loaded / xhr.total * 100) + '% geladen');
-      },
-      (error) => {
-        console.error('Ein Fehler ist aufgetreten:', error);
-      }
     );
   }
 
   private animate(): void {
-    console.log('Animation gestartet');
-
     const animate = () => {
       requestAnimationFrame(animate);
-      this.controls.update(); // Updates für smooth damping
+      this.controls.update();
       this.renderer.render(this.scene, this.camera);
     };
     animate();
@@ -246,16 +228,8 @@ export class TableComponent implements OnInit, AfterViewInit {
         (object) => {
           this.cardModel = object;
           this.isModelLoaded = true;
-          console.log('Kartenmodell geladen');
           resolve();
         },
-        (xhr) => {
-          console.log((xhr.loaded / xhr.total * 100) + '% Kartenmodell geladen');
-        },
-        (error) => {
-          console.error('Fehler beim Laden des Kartenmodells:', error);
-          reject(error);
-        }
       );
     });
   }
@@ -268,20 +242,16 @@ export class TableComponent implements OnInit, AfterViewInit {
 
     let material: THREE.Material;
     if (isFaceUp && cardValue) {
-      console.log('Versuche Textur zu laden für:', cardValue);
       if (!this.cardMaterials.has(cardValue)) {
         const textureLoader = new TextureLoader();
         const texturePath = `assets/models/${cardValue}.png`;
-        console.log('Lade Textur von:', texturePath);
 
         const texture = textureLoader.load(
           texturePath,
-          (loadedTexture) => {
-            console.log('Textur erfolgreich geladen:', cardValue);
-          },
+          (loadedTexture) => {},
           undefined,
           (error) => {
-            console.error('Fehler beim Laden der Textur:', cardValue, error);
+            console.error('Fehler beim Laden der Textur', cardValue, error);
           }
         );
 
@@ -292,21 +262,19 @@ export class TableComponent implements OnInit, AfterViewInit {
       }
       material = this.cardMaterials.get(cardValue)!;
     } else {
-      console.log('Verwende Back-Textur');
       material = this.cardMaterials.get('back')!;
     }
 
     const cardMesh = this.cardModel.clone();
+    cardMesh.scale.set(0.5, 0.5, 0.5);
 
-    // Material auf alle Mesh-Kinder anwenden
     cardMesh.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.material = material;
-        console.log('Material auf Mesh angewendet:', child);
       }
     });
 
-    cardMesh.position.set(x, y, z);
+    cardMesh.position.set(x, y - 0.2, z);
 
     if (isFaceUp) {
       cardMesh.rotation.x = Math.PI;
@@ -315,37 +283,32 @@ export class TableComponent implements OnInit, AfterViewInit {
 
     this.cards.push(cardMesh);
     this.scene.add(cardMesh);
-    console.log('Karte zur Szene hinzugefügt:', cardMesh);
   }
 
   private async updateTableView(showAllDealerCards: boolean = false): Promise<void> {
-    console.log('Update Table View gestartet');
     this.clearTable();
 
     const dealerCards = this.dealerHand.cards;
-    console.log('Dealer Karten zum Anzeigen:', dealerCards);
+    const dealerOffset = -1.5;
+    const cardSpacing = 0.9;
     for (let i = 0; i < dealerCards.length; i++) {
       const card = dealerCards[i];
-      console.log(`Füge Dealer Karte ${i} hinzu:`, card);
-      // Wenn showAllDealerCards true ist oder es die erste Karte ist, zeige sie offen
-      this.addCard(-1 + i * 2, 6, -2, showAllDealerCards || i === 0,
+      this.addCard(dealerOffset + i * cardSpacing, -3.2, -2, showAllDealerCards || i === 0,
         (showAllDealerCards || i === 0) ? card.textureId : undefined);
     }
 
+    const playerOffset = -1.5;
     const playerCards = this.playerHand.cards;
-    console.log('Spieler Karten zum Anzeigen:', playerCards);
     for (let i = 0; i < playerCards.length; i++) {
       const card = playerCards[i];
-      console.log(`Füge Spieler Karte ${i} hinzu:`, card);
-      this.addCard(-1 + i * 2, 6, 1, true, card.textureId);
+      this.addCard(playerOffset + i * cardSpacing, -3.2, 0.5, true, card.textureId);
     }
   }
 
   public async startNewGame(): Promise<void> {
     if (this.gameInProgress) return;
 
-    this.showDealerScore = false; // Reset beim Spielstart
-    console.log('Starte neues Spiel');
+    this.showDealerScore = false;
     this.gameInProgress = true;
 
     this.playerHand = new Hand();
@@ -370,30 +333,20 @@ export class TableComponent implements OnInit, AfterViewInit {
     this.playerHand.addCard(this.deck.drawCard()!);
     await this.updateTableView();
     await new Promise(resolve => setTimeout(resolve, 500));
-
-    console.log('Dealer Hand:', this.dealerHand.cards);
-    console.log('Player Hand:', this.playerHand.cards);
   }
 
   public async hit(): Promise<void> {
-    if (!this.gameInProgress) {
-      console.log('Spiel läuft nicht');
-      return;
-    }
+    if (!this.gameInProgress) return;
 
-    console.log('Hit wurde geklickt');
     const card = this.deck.drawCard();
     if (card) {
-      console.log('Neue Karte gezogen:', card.textureId);
       this.playerHand.addCard(card);
-      console.log('Spieler Hand nach Hit:', this.playerHand.cards);
       await this.updateTableView();
 
-      // Kleine Verzögerung, damit die neue Karte sichtbar ist
       await new Promise(resolve => setTimeout(resolve, 500));
 
       if (this.playerHand.getScore() > 21) {
-        await this.endGame('Dealer gewinnt! ');
+        await this.endGame('Dealer gewinnt ');
       }
     }
   }
@@ -419,13 +372,10 @@ export class TableComponent implements OnInit, AfterViewInit {
   }
 
   private clearTable(): void {
-    console.log('Lösche Tisch, aktuelle Karten:', this.cards.length);
     for (const card of this.cards) {
-      console.log('Entferne Karte:', card);
       this.scene.remove(card);
     }
     this.cards = [];
-    console.log('Tisch gelöscht, neue Kartenzahl:', this.cards.length);
   }
 
   private async endGame(message: string): Promise<void> {
@@ -438,13 +388,13 @@ export class TableComponent implements OnInit, AfterViewInit {
     const dealerScore = this.dealerHand.getScore();
 
     if (dealerScore > 21) {
-      await this.endGame('Spieler gewinnt! Dealer hat sich überkauft!');
+      await this.endGame('Spieler gewinnt. Dealer hat sich überkauft');
     } else if (playerScore > dealerScore) {
-      await this.endGame('Spieler gewinnt!');
+      await this.endGame('Spieler gewinnt');
     } else if (dealerScore > playerScore) {
-      await this.endGame('Dealer gewinnt!');
+      await this.endGame('Dealer gewinnt');
     } else {
-      await this.endGame('Unentschieden!');
+      await this.endGame('Unentschieden');
     }
   }
 
@@ -454,7 +404,6 @@ export class TableComponent implements OnInit, AfterViewInit {
 
   public getDealerScore(): number {
     if (!this.showDealerScore) {
-      // Zeige nur den Wert der ersten (offenen) Karte
       return this.dealerHand?.cards[0]?.numericValue || 0;
     }
     return this.dealerHand?.getScore() || 0;
