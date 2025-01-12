@@ -157,7 +157,7 @@ export class TableComponent implements OnInit, AfterViewInit {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.rendererContainer.nativeElement.appendChild(this.renderer.domElement);
 
-    this.camera.position.set(0, 10, 0); // Kamera direkt über dem Tisch
+    this.camera.position.set(0, 5, 0); // Kamera direkt über dem Tisch
     this.camera.lookAt(0, 0, 0);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
